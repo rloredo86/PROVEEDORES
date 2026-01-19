@@ -1,10 +1,15 @@
 const express = require("express");
-const db = require("./database.js");
-
 const app = express();
 const HTTP_PORT = 8000;
 
 app.use(express.json());
+
+// Hardcoded in-memory data
+let providers = [
+    { id: 1, name: "Juan Perez", email: "juan@example.com", phone: "555-0100", company: "Distribuidora Perez" },
+    { id: 2, name: "Maria Lopez", email: "maria@example.com", phone: "555-0101", company: "Importadora Lopez" }
+];
+let nextId = 3;
 
 // Start server
 app.listen(HTTP_PORT, () => {
@@ -14,7 +19,7 @@ app.listen(HTTP_PORT, () => {
 // Root endpoint
 app.get("/", (req, res) => {
     res.json({
-        "message": "Provider API is running",
+        "message": "Provider API is running (In-Memory)",
         "endpoints": {
             "GetAll": "GET /api/providers",
             "GetOne": "GET /api/providers/:id",
@@ -26,112 +31,95 @@ app.get("/", (req, res) => {
 });
 
 // Get all providers
-app.get("/api/providers", (req, res, next) => {
-    const sql = "select * from providers";
-    const params = [];
-    db.all(sql, params, (err, rows) => {
-        if (err) {
-            res.status(400).json({ "error": err.message });
-            return;
-        }
-        res.json({
-            "message": "success",
-            "data": rows
-        });
+app.get("/api/providers", (req, res) => {
+    res.json({
+        "message": "success",
+        "data": providers
     });
 });
 
 // Get a single provider
-app.get("/api/providers/:id", (req, res, next) => {
-    const sql = "select * from providers where id = ?";
-    const params = [req.params.id];
-    db.get(sql, params, (err, row) => {
-        if (err) {
-            res.status(400).json({ "error": err.message });
-            return;
-        }
-        res.json({
-            "message": "success",
-            "data": row
-        });
+app.get("/api/providers/:id", (req, res) => {
+    const id = parseInt(req.params.id);
+    const provider = providers.find(p => p.id === id);
+    if (!provider) {
+        res.status(404).json({ "error": "Provider not found" });
+        return;
+    }
+    res.json({
+        "message": "success",
+        "data": provider
     });
 });
 
 // Create a new provider
-app.post("/api/providers", (req, res, next) => {
+app.post("/api/providers", (req, res) => {
     const errors = [];
-    if (!req.body.name) {
-        errors.push("No name specified");
-    }
-    if (!req.body.company) {
-        errors.push("No company specified");
-    }
+    if (!req.body.name) errors.push("No name specified");
+    if (!req.body.company) errors.push("No company specified");
+
     if (errors.length) {
         res.status(400).json({ "error": errors.join(",") });
         return;
     }
-    const data = {
-        name: req.body.name,
-        email: req.body.email,
-        phone: req.body.phone,
-        company: req.body.company
-    }
-    const sql = 'INSERT INTO providers (name, email, phone, company) VALUES (?,?,?,?)';
-    const params = [data.name, data.email, data.phone, data.company];
-    db.run(sql, params, function (err, result) {
-        if (err) {
-            res.status(400).json({ "error": err.message });
-            return;
-        }
-        res.json({
-            "message": "success",
-            "data": data,
-            "id": this.lastID
-        });
-    });
-});
 
-// Update a provider
-app.put("/api/providers/:id", (req, res, next) => {
-    const data = {
+    const newProvider = {
+        id: nextId++,
         name: req.body.name,
         email: req.body.email,
         phone: req.body.phone,
         company: req.body.company
     };
-    db.run(
-        `UPDATE providers set 
-           name = COALESCE(?,name), 
-           email = COALESCE(?,email), 
-           phone = COALESCE(?,phone), 
-           company = COALESCE(?,company) 
-           WHERE id = ?`,
-        [data.name, data.email, data.phone, data.company, req.params.id],
-        function (err, result) {
-            if (err) {
-                res.status(400).json({ "error": res.message });
-                return;
-            }
-            res.json({
-                "message": "success",
-                "data": data,
-                "changes": this.changes
-            });
-        });
+
+    providers.push(newProvider);
+
+    res.json({
+        "message": "success",
+        "data": newProvider,
+        "id": newProvider.id
+    });
+});
+
+// Update a provider
+app.put("/api/providers/:id", (req, res) => {
+    const id = parseInt(req.params.id);
+    const providerIndex = providers.findIndex(p => p.id === id);
+
+    if (providerIndex === -1) {
+        res.status(404).json({ "error": "Provider not found" });
+        return;
+    }
+
+    const current = providers[providerIndex];
+    const updated = {
+        id: id,
+        name: req.body.name || current.name,
+        email: req.body.email || current.email,
+        phone: req.body.phone || current.phone,
+        company: req.body.company || current.company
+    };
+
+    providers[providerIndex] = updated;
+
+    res.json({
+        "message": "success",
+        "data": updated,
+        "changes": 1
+    });
 });
 
 // Delete a provider
-app.delete("/api/providers/:id", (req, res, next) => {
-    db.run(
-        'DELETE FROM providers WHERE id = ?',
-        req.params.id,
-        function (err, result) {
-            if (err) {
-                res.status(400).json({ "error": res.message });
-                return;
-            }
-            res.json({ "message": "deleted", changes: this.changes });
-        });
+app.delete("/api/providers/:id", (req, res) => {
+    const id = parseInt(req.params.id);
+    const initialLength = providers.length;
+    providers = providers.filter(p => p.id !== id);
+
+    if (providers.length === initialLength) {
+        res.status(404).json({ "message": "Provider not found or already deleted", changes: 0 });
+        return;
+    }
+
+    res.json({ "message": "deleted", changes: 1 });
 });
 
 // Default response for any other request
