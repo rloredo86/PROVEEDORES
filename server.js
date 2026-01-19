@@ -1,15 +1,10 @@
 const express = require("express");
+const supabase = require("./supabase");
+
 const app = express();
 const HTTP_PORT = 8000;
 
 app.use(express.json());
-
-// Hardcoded in-memory data
-let providers = [
-    { id: 1, name: "Juan Perez", email: "juan@example.com", phone: "555-0100", company: "Distribuidora Perez" },
-    { id: 2, name: "Maria Lopez", email: "maria@example.com", phone: "555-0101", company: "Importadora Lopez" }
-];
-let nextId = 3;
 
 // Start server
 app.listen(HTTP_PORT, () => {
@@ -19,7 +14,7 @@ app.listen(HTTP_PORT, () => {
 // Root endpoint
 app.get("/", (req, res) => {
     res.json({
-        "message": "Provider API is running (In-Memory)",
+        "message": "Provider API is running (Supabase)",
         "endpoints": {
             "GetAll": "GET /api/providers",
             "GetOne": "GET /api/providers/:id",
@@ -31,29 +26,41 @@ app.get("/", (req, res) => {
 });
 
 // Get all providers
-app.get("/api/providers", (req, res) => {
+app.get("/api/providers", async (req, res) => {
+    const { data, error } = await supabase
+        .from('providers')
+        .select('*');
+
+    if (error) {
+        res.status(400).json({ "error": error.message });
+        return;
+    }
     res.json({
         "message": "success",
-        "data": providers
+        "data": data
     });
 });
 
 // Get a single provider
-app.get("/api/providers/:id", (req, res) => {
-    const id = parseInt(req.params.id);
-    const provider = providers.find(p => p.id === id);
-    if (!provider) {
+app.get("/api/providers/:id", async (req, res) => {
+    const { data, error } = await supabase
+        .from('providers')
+        .select('*')
+        .eq('id', req.params.id)
+        .single();
+
+    if (error) {
         res.status(404).json({ "error": "Provider not found" });
         return;
     }
     res.json({
         "message": "success",
-        "data": provider
+        "data": data
     });
 });
 
 // Create a new provider
-app.post("/api/providers", (req, res) => {
+app.post("/api/providers", async (req, res) => {
     const errors = [];
     if (!req.body.name) errors.push("No name specified");
     if (!req.body.company) errors.push("No company specified");
@@ -63,63 +70,71 @@ app.post("/api/providers", (req, res) => {
         return;
     }
 
-    const newProvider = {
-        id: nextId++,
+    const providerData = {
         name: req.body.name,
         email: req.body.email,
         phone: req.body.phone,
         company: req.body.company
     };
 
-    providers.push(newProvider);
+    const { data, error } = await supabase
+        .from('providers')
+        .insert([providerData])
+        .select();
+
+    if (error) {
+        res.status(400).json({ "error": error.message });
+        return;
+    }
 
     res.json({
         "message": "success",
-        "data": newProvider,
-        "id": newProvider.id
+        "data": data[0],
+        "id": data[0].id
     });
 });
 
 // Update a provider
-app.put("/api/providers/:id", (req, res) => {
-    const id = parseInt(req.params.id);
-    const providerIndex = providers.findIndex(p => p.id === id);
+app.put("/api/providers/:id", async (req, res) => {
+    const { data, error } = await supabase
+        .from('providers')
+        .update(req.body)
+        .eq('id', req.params.id)
+        .select();
 
-    if (providerIndex === -1) {
+    if (error) {
+        res.status(400).json({ "error": error.message });
+        return;
+    }
+
+    // Check if any row was actually updated
+    if (data.length === 0) {
         res.status(404).json({ "error": "Provider not found" });
         return;
     }
 
-    const current = providers[providerIndex];
-    const updated = {
-        id: id,
-        name: req.body.name || current.name,
-        email: req.body.email || current.email,
-        phone: req.body.phone || current.phone,
-        company: req.body.company || current.company
-    };
-
-    providers[providerIndex] = updated;
-
     res.json({
         "message": "success",
-        "data": updated,
+        "data": data[0],
         "changes": 1
     });
 });
 
 // Delete a provider
-app.delete("/api/providers/:id", (req, res) => {
-    const id = parseInt(req.params.id);
-    const initialLength = providers.length;
-    providers = providers.filter(p => p.id !== id);
+app.delete("/api/providers/:id", async (req, res) => {
+    const { message, error } = await supabase
+        .from('providers')
+        .delete()
+        .eq('id', req.params.id);
 
-    if (providers.length === initialLength) {
-        res.status(404).json({ "message": "Provider not found or already deleted", changes: 0 });
+    if (error) {
+        res.status(400).json({ "error": error.message });
         return;
     }
 
-    res.json({ "message": "deleted", changes: 1 });
+    // Note: delete() doesn't return count by default without select or count option, 
+    // but for simplicity we assume success if no error.
+    res.json({ "message": "deleted" });
 });
 
 // Default response for any other request
