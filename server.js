@@ -13,7 +13,16 @@ app.listen(HTTP_PORT, () => {
 
 // Root endpoint
 app.get("/", (req, res) => {
-    res.json({ "message": "Ok" });
+    res.json({
+        "message": "Provider API is running",
+        "endpoints": {
+            "GetAll": "GET /api/providers",
+            "GetOne": "GET /api/providers/:id",
+            "Create": "POST /api/providers",
+            "Update": "PUT /api/providers/:id",
+            "Delete": "DELETE /api/providers/:id"
+        }
+    });
 });
 
 // Get all providers
