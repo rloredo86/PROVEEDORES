@@ -1,9 +1,12 @@
 const express = require("express");
 const supabase = require("./supabase");
 
+const path = require('path');
+
 const app = express();
 const HTTP_PORT = 8000;
 
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
 // Start server
@@ -11,18 +14,9 @@ app.listen(HTTP_PORT, () => {
     console.log("Server running on port %PORT%".replace("%PORT%", HTTP_PORT));
 });
 
-// Root endpoint
+// Root endpoint serves UI
 app.get("/", (req, res) => {
-    res.json({
-        "message": "Provider API is running (Supabase)",
-        "endpoints": {
-            "GetAll": "GET /api/providers",
-            "GetOne": "GET /api/providers/:id",
-            "Create": "POST /api/providers",
-            "Update": "PUT /api/providers/:id",
-            "Delete": "DELETE /api/providers/:id"
-        }
-    });
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Get all providers

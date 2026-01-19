@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Proveedores</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #f4f4f4; }
+        h1, h2 { color: #333; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        input { padding: 8px; margin: 5px 0; width: 100%; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 10px 15px; cursor: pointer; background-color: #28a745; color: white; border: none; border-radius: 4px; font-size: 14px; }
+        button:hover { background-color: #218838; }
+        button.delete { background-color: #dc3545; }
+        button.delete:hover { background-color: #c82333; }
+        button.edit { background-color: #ffc107; color: black; }
+        button.edit:hover { background-color: #e0a800; }
+        button.cancel { background-color: #6c757d; display: none; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
+        th { background-color: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <h1>Gestión de Proveedores</h1>
+    
+    <div class="container">
+        <h2 id="formTitle">Nuevo Proveedor</h2>
+        <form id="providerForm">
+            <input type="hidden" id="providerId">
+            <input type="text" id="name" placeholder="Nombre" required>
+            <input type="email" id="email" placeholder="Email">
+            <input type="text" id="phone" placeholder="Teléfono">
+            <input type="text" id="company" placeholder="Empresa" required>
+            <div style="margin-top: 10px;">
+                <button type="submit" id="submitBtn">Guardar</button>
+                <button type="button" id="cancelBtn" class="cancel" onclick="resetForm()">Cancelar</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="container">
+        <h2>Lista de Proveedores</h2>
+        <table id="providersTable">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Empresa</th>
+                    <th>Email</th>
+                    <th>Teléfono</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Providers loads here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const API_URL = '/api/providers';
+
+        async function loadProviders() {
+            const response = await fetch(API_URL);
+            const data = await response.json();
+            const tbody = document.querySelector('#providersTable tbody');
+            tbody.innerHTML = '';
+            
+            if(data.data) {
+                data.data.forEach(provider => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${provider.name}</td>
+                        <td>${provider.company}</td>
+                        <td>${provider.email || ''}</td>
+                        <td>${provider.phone || ''}</td>
+                        <td>
+                            <button class="edit" onclick='editProvider(${JSON.stringify(provider)})'>Editar</button>
+                            <button class="delete" onclick="deleteProvider('${provider.id}')">Eliminar</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        async function saveProvider(e) {
+            e.preventDefault();
+            const id = document.getElementById('providerId').value;
+            const data = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value,
+                company: document.getElementById('company').value
+            };
+
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `${API_URL}/${id}` : API_URL;
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                if(result.error) {
+                    alert('Error: ' + result.error);
+                } else {
+                    resetForm();
+                    loadProviders();
+                }
+            } catch (error) {
+                alert('Error de conexión');
+            }
+        }
+
+        async function deleteProvider(id) {
+            if(confirm('¿Estás seguro de eliminar este proveedor?')) {
+                await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+                loadProviders();
+            }
+        }
+
+        function editProvider(provider) {
+            document.getElementById('formTitle').innerText = 'Editar Proveedor';
+            document.getElementById('providerId').value = provider.id;
+            document.getElementById('name').value = provider.name;
+            document.getElementById('email').value = provider.email;
+            document.getElementById('phone').value = provider.phone;
+            document.getElementById('company').value = provider.company;
+            document.getElementById('submitBtn').innerText = 'Actualizar';
+            document.getElementById('cancelBtn').style.display = 'inline-block';
+        }
+
+        function resetForm() {
+            document.getElementById('providerForm').reset();
+            document.getElementById('providerId').value = '';
+            document.getElementById('formTitle').innerText = 'Nuevo Proveedor';
+            document.getElementById('submitBtn').innerText = 'Guardar';
+            document.getElementById('cancelBtn').style.display = 'none';
+        }
+
+        document.getElementById('providerForm').addEventListener('submit', saveProvider);
+        loadProviders();
+    </script>
+</body>
+</html>
